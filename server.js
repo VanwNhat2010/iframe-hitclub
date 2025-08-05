@@ -1,29 +1,30 @@
-const express = require("express");
-const request = require("request");
+const express = require('express');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const path = require('path');
+
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-const TARGET_URL = "https://i.hit.club";
-
-app.use("/", (req, res) => {
-  const url = TARGET_URL + req.originalUrl;
-
-  req.pipe(
-    request({
-      url,
-      headers: {
-        "User-Agent": req.headers["user-agent"],
-        "Accept-Language": req.headers["accept-language"],
-      },
-    })
-      .on("response", function (response) {
-        // Xóa các headers ngăn iframe
-        delete response.headers["x-frame-options"];
-        delete response.headers["content-security-policy"];
-      })
-  ).pipe(res);
+// Cho phép iframe (bỏ chặn x-frame-options)
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("X-Frame-Options", "ALLOWALL");
+  next();
 });
 
-const PORT = process.env.PORT || 3000;
+// Proxy tới trang hit.club
+app.use('/proxy', createProxyMiddleware({
+  target: 'https://i.hit.club',
+  changeOrigin: true,
+  pathRewrite: { '^/proxy': '' },
+  onProxyRes: function (proxyRes) {
+    delete proxyRes.headers['x-frame-options']; // Loại bỏ X-Frame-Options
+  }
+}));
+
+// Trang demo
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.listen(PORT, () => {
-  console.log("Proxy server running on port", PORT);
+  console.log(`Proxy Server đang chạy tại http://localhost:${PORT}`);
 });
